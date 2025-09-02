@@ -1,0 +1,19 @@
+{
+  "mode": "sim",
+  "fs": 1,
+  "window_s": 120,
+  "hop_s": 10,
+  "warmup_s": 300,
+  "green_hi": 30,
+  "yellow_hi": 70,
+  "notify": true,
+  "severity_notify_threshold": 70,
+  "duration_s": 900,
+  "sim": {
+    "ambient": 28.0,
+    "avg_load": 30,
+    "load_style": "idle spikes",
+    "fault": "none",
+    "seed": 42
+  }
+}

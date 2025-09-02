@@ -1,0 +1,9 @@
+streamlit
+numpy
+pandas
+scikit-learn
+plyer
+reportlab
+matplotlib
+wmi; platform_system == "Windows"
+pywin32; platform_system == "Windows"
