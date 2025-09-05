@@ -6,7 +6,7 @@ from sklearn.pipeline import Pipeline
 import joblib, os
 
 def train_iforest(X: pd.DataFrame, random_state: int = 42) -> Pipeline:
-    model = Pipeline([("scaler", StandardScaler()), ("if", IsolationForest(n_estimators=300, contamination=0.12, random_state=random_state))])
+    model = Pipeline([("scaler", StandardScaler()), ("if", IsolationForest(n_estimators=300, contamination=0.03, random_state=random_state))])
     model.fit(X)
     return model
 
