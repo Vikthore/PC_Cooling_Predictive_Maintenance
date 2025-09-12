@@ -413,6 +413,7 @@ with st.spinner("🔄 Collecting data and analyzing system performance..."):
                 # -------- Path A: WMI via pywin32 --------
                 try:
                     import pythoncom
+
                     pythoncom.CoInitialize()
                 except ImportError:
                     pass  # Not on Windows, or pythoncom not available

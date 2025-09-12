@@ -4,7 +4,6 @@ pandas
 scikit-learn
 plyer
 plotly
-pythoncom
 reportlab
 matplotlib
 wmi; platform_system == "Windows"

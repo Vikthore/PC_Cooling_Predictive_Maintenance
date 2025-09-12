@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 def _roll_stats(x: np.ndarray):
     return {
         "mean": float(np.mean(x)),
@@ -12,8 +13,10 @@ def _roll_stats(x: np.ndarray):
         "p2p": float(np.max(x) - np.min(x)),
     }
 
+
 def _has(df: pd.DataFrame, col: str) -> bool:
     return (col in df.columns) and df[col].notna().any()
+
 
 def _safe_corr(a: np.ndarray, b: np.ndarray) -> float:
     if len(a) != len(b) or np.std(a) == 0 or np.std(b) == 0:
@@ -23,11 +26,9 @@ def _safe_corr(a: np.ndarray, b: np.ndarray) -> float:
         return 0.0
     return float(c)
 
+
 def build_feature_table(
-    df: pd.DataFrame,
-    fs: int = 1,
-    window_s: int = 120,
-    hop_s: int = 10
+    df: pd.DataFrame, fs: int = 1, window_s: int = 120, hop_s: int = 10
 ):
     """
     Robust feature builder:
@@ -49,7 +50,8 @@ def build_feature_table(
     for start in range(0, n - win + 1, hop):
         end = start + win
         w = df.iloc[start:end]
-        t0 = float(w["t"].iloc[0]); t1 = float(w["t"].iloc[-1])
+        t0 = float(w["t"].iloc[0])
+        t1 = float(w["t"].iloc[-1])
 
         row = {"t_start": t0, "t_end": t1}
 
@@ -104,7 +106,9 @@ def build_feature_table(
     # Ensure numeric columns exist even if sensors were absent (helps downstream selection by prefixes)
     for base in ["gpu_", "fan_", "load_"]:
         if not any(c.startswith(base) for c in feats.columns):
-            feats[base + "stub"] = np.nan  # harmless column to keep prefix selection safe
+            feats[base + "stub"] = (
+                np.nan
+            )  # harmless column to keep prefix selection safe
 
     meta = {"fs": fs, "window_s": window_s, "hop_s": hop_s}
     return feats, meta

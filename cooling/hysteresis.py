@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Tuple
 
+
 def apply_hysteresis(
     status_raw: List[str],
     severity: List[float],
@@ -37,9 +38,9 @@ def apply_hysteresis(
 
     for i, (raw, sev, ts, te) in enumerate(zip(status_raw, severity, t_start, t_end)):
         # track streaks
-        is_red = (raw == "🔴 Faulty")
-        is_yellow = (raw == "🟡 Warning")
-        is_green = (raw == "🟢 Healthy")
+        is_red = raw == "🔴 Faulty"
+        is_yellow = raw == "🟡 Warning"
+        is_green = raw == "🟢 Healthy"
 
         # --- escalation logic ---
         if state != "🔴 Faulty":
@@ -82,7 +83,10 @@ def apply_hysteresis(
         transitioned = False
 
         # 1) escalate from non-red to red
-        if state != "🔴 Faulty" and (red_enter_ctr >= red_enter_win or yellow_streak >= escalate_yellow_to_red_win):
+        if state != "🔴 Faulty" and (
+            red_enter_ctr >= red_enter_win
+            or yellow_streak >= escalate_yellow_to_red_win
+        ):
             state = "🔴 Faulty"
             transitioned = True
             red_enter_ctr = yellow_streak = 0

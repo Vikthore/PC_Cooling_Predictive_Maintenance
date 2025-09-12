@@ -23,7 +23,9 @@ def _collect_sim_block(cfg: Dict[str, Any]) -> Tuple[pd.DataFrame, Dict[str, Any
     return df, {"mode": "sim"}
 
 
-def _collect_windows_live_block(cfg: Dict[str, Any]) -> Tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+def _collect_windows_live_block(
+    cfg: Dict[str, Any],
+) -> Tuple[Optional[pd.DataFrame], Dict[str, Any]]:
     """
     Real-time collection from OpenHardwareMonitor WMI for the full duration.
     - Samples at fs for duration_s seconds.
@@ -51,7 +53,9 @@ def _collect_windows_live_block(cfg: Dict[str, Any]) -> Tuple[Optional[pd.DataFr
     except Exception as e:
         return None, {"mode": "windows_live", "error": f"wmi_namespace: {e}"}
 
-    def get_value(snapshot, sensor_type: str, name_contains: list[str]) -> Optional[float]:
+    def get_value(
+        snapshot, sensor_type: str, name_contains: list[str]
+    ) -> Optional[float]:
         typ = sensor_type.lower()
         for s in snapshot:
             try:
@@ -74,23 +78,31 @@ def _collect_windows_live_block(cfg: Dict[str, Any]) -> Tuple[Optional[pd.DataFr
     for i in range(n):
         snap = c.Sensor()  # one WMI snapshot
 
-        cpu_temp = get_value(snap, "temperature", ["cpu package", "cpu"])  # prefer "package"
+        cpu_temp = get_value(
+            snap, "temperature", ["cpu package", "cpu"]
+        )  # prefer "package"
         gpu_temp = get_value(snap, "temperature", ["gpu", "nvidia", "amd"])
-        fan_rpm  = get_value(snap, "fan", ["cpu", "system", "chassis", "gpu"])
+        fan_rpm = get_value(snap, "fan", ["cpu", "system", "chassis", "gpu"])
         cpu_load = get_value(snap, "load", ["cpu total", "cpu"])
 
-        if cpu_temp is not None: seen["cpu_temp"] = True
-        if gpu_temp is not None: seen["gpu_temp"] = True
-        if fan_rpm  is not None: seen["fan_rpm"]  = True
-        if cpu_load is not None: seen["cpu_load"] = True
+        if cpu_temp is not None:
+            seen["cpu_temp"] = True
+        if gpu_temp is not None:
+            seen["gpu_temp"] = True
+        if fan_rpm is not None:
+            seen["fan_rpm"] = True
+        if cpu_load is not None:
+            seen["cpu_load"] = True
 
-        recs.append({
-            "t": i / max(1, fs_int),
-            "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
-            "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
-            "fan_rpm":  fan_rpm  if fan_rpm  is not None else np.nan,
-            "cpu_load": cpu_load if cpu_load is not None else np.nan,
-        })
+        recs.append(
+            {
+                "t": i / max(1, fs_int),
+                "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
+                "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
+                "fan_rpm": fan_rpm if fan_rpm is not None else np.nan,
+                "cpu_load": cpu_load if cpu_load is not None else np.nan,
+            }
+        )
 
         # precise pacing to maintain fs
         next_tick = t0 + (i + 1) / max(1, fs_int)
@@ -109,7 +121,9 @@ def _collect_windows_live_block(cfg: Dict[str, Any]) -> Tuple[Optional[pd.DataFr
     # Ambient proxy from a slow rolling-min of CPU temp minus 10°C (bounded)
     if "cpu_temp" in df.columns and df["cpu_temp"].notna().any():
         ambient_roll = max(1, fs_int * 300)  # ~5 minutes, in samples
-        amb_proxy = (df["cpu_temp"].rolling(window=ambient_roll, min_periods=1).min() - 10).clip(lower=15, upper=40)
+        amb_proxy = (
+            df["cpu_temp"].rolling(window=ambient_roll, min_periods=1).min() - 10
+        ).clip(lower=15, upper=40)
         df["ambient"] = amb_proxy.values
     else:
         df["ambient"] = 30.0  # fallback constant if no CPU temp (rare)
