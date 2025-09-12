@@ -6,6 +6,9 @@ import plotly.express as px
 import plotly.graph_objects as go_plotly
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import platform
+
+IS_WINDOWS = platform.system() == "Windows"
 
 from cooling.daq import collect_block
 from cooling.features import build_feature_table
@@ -20,12 +23,14 @@ from cooling.rules import suggest_actions
 from cooling.report import build_pdf_report
 from cooling.hysteresis import apply_hysteresis
 
+
 # --- Windows COM/WMI cache fix (prevents com_error: Invalid syntax in Streamlit) ---
 def _reset_win32com_cache():
     try:
         import os, site, shutil
         import win32com.client.gencache as gencache
         import win32com.client as win32
+
         # allow writes
         gencache.is_readonly = False
         # clear user temp cache
@@ -37,19 +42,21 @@ def _reset_win32com_cache():
         # re-prime COM wrappers
         win32.gencache.EnsureDispatch("WbemScripting.SWbemLocator")
     except Exception:
-        # non-fatal; we’ll still attempt import below
+        # non-fatal; we'll still attempt import below
         pass
+
 
 # ------------------------- Page Configuration -------------------------
 st.set_page_config(
     page_title="PC Cooling Predictive Maintenance",
     page_icon="🖥",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Custom CSS for better styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* Main title styling */
     .main-header {
@@ -148,10 +155,13 @@ st.markdown("""
     footer {visibility: hidden;}
     .stDeployButton {display:none;}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ⇩ append this to the end of your current CSS string
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* ---------- Dark theme overrides ---------- */
 .stApp[data-theme="dark"] {
@@ -202,26 +212,41 @@ st.markdown("""
   color: var(--panel-fg) !important; 
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ------------------------- Header Section -------------------------
-st.markdown('<h1 class="main-header">🖥 PC Cooling Predictive Maintenance</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Monitor your system health and prevent overheating issues before they occur</p>', unsafe_allow_html=True)
+st.markdown(
+    '<h1 class="main-header">🖥 PC Cooling Predictive Maintenance</h1>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p class="subtitle">Monitor your system health and prevent overheating issues before they occur</p>',
+    unsafe_allow_html=True,
+)
 
 # ------------------------- Enhanced Sidebar -------------------------
 with st.sidebar:
     st.markdown("### ⚙ Configuration Panel")
-    
+
     # Data Source Section
     st.markdown("#### 📊 Data Source")
     with st.container():
+        sources = ["Simulated"] + (["Windows Live"] if IS_WINDOWS else [])
         src = st.selectbox(
-            "Select Source", 
-            ["Simulated", "Windows Live"],
-            help="💡 Windows Live requires OpenHardwareMonitor running"
+            "Source",
+            sources,
+            help="Windows Live requires Windows + OpenHardwareMonitor.",
         )
 
-    # Run Settings Section  
+        if src == "Windows Live" and not IS_WINDOWS:
+            st.error(
+                "Windows Live is only supported on Windows. Use Simulated mode here, or run locally on Windows."
+            )
+            st.stop()
+
+    # Run Settings Section
     st.markdown("#### ⏱ Run Settings")
     col1, col2 = st.columns(2)
     with col1:
@@ -234,15 +259,32 @@ with st.sidebar:
         with st.expander("🔧 Simulation Parameters", expanded=True):
             amb = st.number_input("Ambient Temp (°C)", 15.0, 45.0, 28.0, step=0.5)
             base_load = st.slider("Average CPU Load (%)", 0, 100, 30, step=5)
-            load_style = st.selectbox("Load Profile", ["idle spikes", "ramps", "sine wave"])
-            fault = st.selectbox("Fault Simulation", 
-                ["none", "fan_slow", "dust_clog", "paste_degraded", "ambient_hot", "curve_misconfig"])
+            load_style = st.selectbox(
+                "Load Profile", ["idle spikes", "ramps", "sine wave"]
+            )
+            fault = st.selectbox(
+                "Fault Simulation",
+                [
+                    "none",
+                    "fan_slow",
+                    "dust_clog",
+                    "paste_degraded",
+                    "ambient_hot",
+                    "curve_misconfig",
+                ],
+            )
             seed = st.number_input("Random Seed", 0, 1_000_000, 42, step=1)
 
     # Detection Settings
     with st.expander("🔍 Detection Settings", expanded=False):
-        warmup = st.slider("Healthy Warm-up (s)", 10, 1800, 300, step=10, 
-                          help="Used for training if no model loaded")
+        warmup = st.slider(
+            "Healthy Warm-up (s)",
+            10,
+            1800,
+            300,
+            step=10,
+            help="Used for training if no model loaded",
+        )
         win = st.slider("Analysis Window (s)", 20, 600, 180, step=10)
         hop = st.slider("Update Interval (s)", 5, 120, 10, step=5)
 
@@ -272,7 +314,8 @@ if not go:
     # Welcome section with instructions
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="info-box">
             <h3>🎯 Ready to Monitor Your System</h3>
             <p>Configure your settings in the sidebar and click <strong>Start Analysis</strong> to begin monitoring your PC's cooling performance.</p>
@@ -281,22 +324,24 @@ if not go:
                 <li><strong>Windows Live:</strong> Real-time monitoring of your actual system</li>
             </ul>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     # Quick stats or system info could go here
     with st.container():
         st.markdown("### 📈 System Overview")
         info_col1, info_col2, info_col3, info_col4 = st.columns(4)
-        
+
         with info_col1:
             st.metric("🕒 Analysis Duration", f"{dur}s")
         with info_col2:
             st.metric("📊 Sampling Rate", f"{fs} Hz")
         with info_col3:
-            st.metric("🔍 Window Size", f"{win}s" if 'win' in locals() else "180s")
+            st.metric("🔍 Window Size", f"{win}s" if "win" in locals() else "180s")
         with info_col4:
             st.metric("📡 Data Source", src)
-    
+
     st.stop()
 
 # ------------------------- Data Collection -------------------------
@@ -306,155 +351,209 @@ with st.spinner("🔄 Collecting data and analyzing system performance..."):
             "mode": "sim",
             "fs": fs,
             "duration_s": dur,
-            "sim": {"ambient": amb, "avg_load": base_load, "load_style": load_style, "fault": fault, "seed": seed},
+            "sim": {
+                "ambient": amb,
+                "avg_load": base_load,
+                "load_style": load_style,
+                "fault": fault,
+                "seed": seed,
+            },
         }
+        df, meta = collect_block(cfg)
     else:
         cfg = {"mode": "windows_live", "fs": fs, "duration_s": dur, "sim": {}}
+        if src == "Windows Live":
+            if not IS_WINDOWS:
+                st.error(
+                    "Windows Live is only supported on Windows. Use Simulated mode here, or run locally on Windows."
+                )
+                st.stop()
 
-    # For Windows Live, collect in real-time with a progress bar
-# --- Windows Live collection with COM→CIM fallback and progress ---
-import sys, time, subprocess, json
+            import time, subprocess, json  # local imports so cloud builds don't see them
 
-fs_int = int(fs)
-duration_int = int(dur)
-total_steps = fs_int * max(1, duration_int)
+            fs_int = int(fs)
+            duration_int = int(dur)
+            total_steps = fs_int * max(1, duration_int)
 
-# Try pywin32 WMI first; if import fails, use PowerShell CIM
-use_cim = False
-try:
-    import wmi as _wmi
-except Exception:
-    use_cim = True
-
-# helper: drop columns that never had any value (avoid fake fan/GPU)
-def _drop_never_seen(_df: pd.DataFrame) -> pd.DataFrame:
-    for col in ["cpu_temp", "gpu_temp", "fan_rpm", "cpu_load"]:
-        if col in _df.columns and not _df[col].notna().any():
-            _df.drop(columns=[col], inplace=True)
-    return _df
-
-progress = st.progress(0, text="Collecting Windows Live telemetry…")
-status_txt = st.empty()
-recs = []
-t0 = time.time()
-
-if not use_cim:
-    # -------- Path A: WMI via pywin32 --------
-    c = _wmi.WMI(namespace=r"root\OpenHardwareMonitor")
-
-    def get_val_wmi(snapshot, sensor_type: str, keys: list[str]):
-        typ = sensor_type.lower()
-        for s in snapshot:
+            # Try pywin32 WMI first; if that import fails, try cache reset then retry, else CIM
             try:
-                if getattr(s, "SensorType", "").lower() == typ:
-                    name = getattr(s, "Name", "").lower()
-                    if any(k in name for k in keys):
-                        v = getattr(s, "Value", None)
-                        if v is not None:
-                            return float(v)
+                import wmi as _wmi
+
+                use_cim = False
             except Exception:
-                pass
-        return None
+                try:
+                    _reset_win32com_cache()
+                    import wmi as _wmi
 
-    for i in range(total_steps):
-        snap = c.Sensor()
-        cpu_temp = get_val_wmi(snap, "temperature", ["cpu package", "cpu"])
-        gpu_temp = get_val_wmi(snap, "temperature", ["gpu", "nvidia", "amd"])
-        fan_rpm  = get_val_wmi(snap, "fan", ["cpu", "system", "chassis", "gpu"])
-        cpu_load = get_val_wmi(snap, "load", ["cpu total", "cpu"])
+                    use_cim = False
+                except Exception:
+                    _wmi = None
+                    use_cim = True
 
-        recs.append({
-            "t": i / max(1, fs_int),
-            "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
-            "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
-            "fan_rpm":  fan_rpm  if fan_rpm  is not None else np.nan,
-            "cpu_load": cpu_load if cpu_load is not None else np.nan,
-        })
+            # NEW: clamp sampling when using CIM
+            if use_cim and fs_int > 1:
+                st.warning(
+                    "CIM fallback active: limiting sampling to 1 Hz for reliability."
+                )
+                fs_int = 1
+                total_steps = fs_int * max(1, duration_int)
 
-        pct = int((i + 1) / total_steps * 100)
-        progress.progress(pct, text=f"Collecting Windows Live telemetry… {pct}%")
-        status_txt.write(f"Elapsed: {int(time.time()-t0)}s / {duration_int}s")
+            def _drop_never_seen(_df: pd.DataFrame) -> pd.DataFrame:
+                for col in ["cpu_temp", "gpu_temp", "fan_rpm", "cpu_load"]:
+                    if col in _df.columns and not _df[col].notna().any():
+                        _df.drop(columns=[col], inplace=True)
+                return _df
 
-        next_tick = t0 + (i + 1) / max(1, fs_int)
-        time.sleep(max(0.0, next_tick - time.time()))
-else:
-    # -------- Path B: PowerShell CIM fallback (no pywin32/COM) --------
-    def cim_snapshot():
-        ps = r'''
-        Get-CimInstance -Namespace root\OpenHardwareMonitor -ClassName Sensor |
-          Select-Object Name, SensorType, Value |
-          ConvertTo-Json -Compress
-        '''
-        out = subprocess.check_output(["powershell", "-NoProfile", "-Command", ps], text=True)
-        try:
-            data = json.loads(out)
-        except Exception:
-            return []
-        if isinstance(data, dict):
-            data = [data]
-        return data if isinstance(data, list) else []
+            progress = st.progress(0, text="Collecting Windows Live telemetry…")
+            status_txt = st.empty()
+            recs = []
+            t0 = time.time()
 
-    def get_val_cim(rows, sensor_type: str, keys: list[str]):
-        typ = sensor_type.lower()
-        for r in rows:
-            try:
-                if str(r.get("SensorType", "")).lower() == typ:
-                    name = str(r.get("Name", "")).lower()
-                    if any(k in name for k in keys):
-                        v = r.get("Value", None)
-                        if v is not None and str(v).strip() != "":
-                            return float(v)
-            except Exception:
-                pass
-        return None
+            if IS_WINDOWS and not use_cim:
+                # -------- Path A: WMI via pywin32 --------
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass  # Not on Windows, or pythoncom not available
+                c = _wmi.WMI(namespace=r"root\OpenHardwareMonitor")
 
-    for i in range(total_steps):
-        rows = cim_snapshot()
-        cpu_temp = get_val_cim(rows, "temperature", ["cpu package", "cpu"])
-        gpu_temp = get_val_cim(rows, "temperature", ["gpu", "nvidia", "amd"])
-        fan_rpm  = get_val_cim(rows, "fan", ["cpu", "system", "chassis", "gpu"])
-        cpu_load = get_val_cim(rows, "load", ["cpu total", "cpu"])
+                def get_val_wmi(snapshot, sensor_type: str, keys: list[str]):
+                    typ = sensor_type.lower()
+                    for s in snapshot:
+                        try:
+                            if getattr(s, "SensorType", "").lower() == typ:
+                                name = getattr(s, "Name", "").lower()
+                                if any(k in name for k in keys):
+                                    v = getattr(s, "Value", None)
+                                    if v is not None:
+                                        return float(v)
+                        except Exception:
+                            pass
+                    return None
 
-        recs.append({
-            "t": i / max(1, fs_int),
-            "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
-            "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
-            "fan_rpm":  fan_rpm  if fan_rpm  is not None else np.nan,
-            "cpu_load": cpu_load if cpu_load is not None else np.nan,
-        })
+                for i in range(total_steps):
+                    snap = c.Sensor()
+                    cpu_temp = get_val_wmi(snap, "temperature", ["cpu package", "cpu"])
+                    gpu_temp = get_val_wmi(
+                        snap, "temperature", ["gpu", "nvidia", "amd"]
+                    )
+                    fan_rpm = get_val_wmi(
+                        snap, "fan", ["cpu", "system", "chassis", "gpu"]
+                    )
+                    cpu_load = get_val_wmi(snap, "load", ["cpu total", "cpu"])
 
-        pct = int((i + 1) / total_steps * 100)
-        progress.progress(pct, text=f"Collecting Windows Live telemetry… {pct}%")
-        status_txt.write(f"Elapsed: {int(time.time()-t0)}s / {duration_int}s")
+                    recs.append(
+                        {
+                            "t": i / max(1, fs_int),
+                            "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
+                            "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
+                            "fan_rpm": fan_rpm if fan_rpm is not None else np.nan,
+                            "cpu_load": cpu_load if cpu_load is not None else np.nan,
+                        }
+                    )
 
-        next_tick = t0 + (i + 1) / max(1, fs_int)
-        time.sleep(max(0.0, next_tick - time.time()))
+                    pct = int((i + 1) / total_steps * 100)
+                    progress.progress(
+                        pct, text=f"Collecting Windows Live telemetry… {pct}%"
+                    )
+                    status_txt.write(
+                        f"Elapsed: {int(time.time()-t0)}s / {duration_int}s"
+                    )
 
-# Finalize DataFrame, drop never-seen sensors, compute ambient proxy
-df = pd.DataFrame(recs)
-df = _drop_never_seen(df)
+                    next_tick = t0 + (i + 1) / max(1, fs_int)
+                    time.sleep(max(0.0, next_tick - time.time()))
+            else:
+                # -------- Path B: PowerShell CIM fallback (no pywin32/COM) --------
+                def cim_snapshot():
+                    ps = r"""
+                    Get-CimInstance -Namespace root\OpenHardwareMonitor -ClassName Sensor |
+                        Select-Object Name, SensorType, Value |
+                        ConvertTo-Json -Compress
+                    """
+                    out = subprocess.check_output(
+                        ["powershell", "-NoProfile", "-Command", ps], text=True
+                    )
+                    try:
+                        data = json.loads(out)
+                    except Exception:
+                        return []
+                    if isinstance(data, dict):
+                        data = [data]
+                    return data if isinstance(data, list) else []
 
-# NEW (no collision with UI 'win')
-if "cpu_temp" in df.columns and df["cpu_temp"].notna().any():
-    ambient_roll = max(1, fs_int * 300)  # ~5 min rolling min (in samples)
-    amb_proxy = (df["cpu_temp"].rolling(window=ambient_roll, min_periods=1).min() - 10).clip(lower=15, upper=40)
-    df["ambient"] = amb_proxy.values
+                def get_val_cim(rows, sensor_type: str, keys: list[str]):
+                    typ = sensor_type.lower()
+                    for r in rows:
+                        try:
+                            if str(r.get("SensorType", "")).lower() == typ:
+                                name = str(r.get("Name", "")).lower()
+                                if any(k in name for k in keys):
+                                    v = r.get("Value", None)
+                                    if v is not None and str(v).strip() != "":
+                                        return float(v)
+                        except Exception:
+                            pass
+                    return None
 
+                for i in range(total_steps):
+                    rows = cim_snapshot()
+                    cpu_temp = get_val_cim(rows, "temperature", ["cpu package", "cpu"])
+                    gpu_temp = get_val_cim(
+                        rows, "temperature", ["gpu", "nvidia", "amd"]
+                    )
+                    fan_rpm = get_val_cim(
+                        rows, "fan", ["cpu", "system", "chassis", "gpu"]
+                    )
+                    cpu_load = get_val_cim(rows, "load", ["cpu total", "cpu"])
 
-progress.empty(); status_txt.empty()
-meta = {"mode": "windows_live"}
+                    recs.append(
+                        {
+                            "t": i / max(1, fs_int),
+                            "cpu_temp": cpu_temp if cpu_temp is not None else np.nan,
+                            "gpu_temp": gpu_temp if gpu_temp is not None else np.nan,
+                            "fan_rpm": fan_rpm if fan_rpm is not None else np.nan,
+                            "cpu_load": cpu_load if cpu_load is not None else np.nan,
+                        }
+                    )
 
+                    pct = int((i + 1) / total_steps * 100)
+                    progress.progress(
+                        pct, text=f"Collecting Windows Live telemetry… {pct}%"
+                    )
+                    status_txt.write(
+                        f"Elapsed: {int(time.time()-t0)}s / {duration_int}s"
+                    )
 
+                    next_tick = t0 + (i + 1) / max(1, fs_int)
+                    time.sleep(max(0.0, next_tick - time.time()))
 
+            # Finalize DataFrame, drop never-seen sensors, compute ambient proxy
+            df = pd.DataFrame(recs)
+            df = _drop_never_seen(df)
+
+            if "cpu_temp" in df.columns and df["cpu_temp"].notna().any():
+                ambient_roll = max(1, fs_int * 300)  # ~5 min rolling min (in samples)
+                amb_proxy = (
+                    df["cpu_temp"].rolling(window=ambient_roll, min_periods=1).min()
+                    - 10
+                ).clip(lower=15, upper=40)
+                df["ambient"] = amb_proxy.values
+            else:
+                df["ambient"] = 30.0
+
+            progress.empty()
+            status_txt.empty()
+            meta = {"mode": "windows_live"}
 # ------------------------- Model Training/Loading -------------------------
 # Build features (fail fast if no windows produced)
 feats, _ = build_feature_table(df, fs=fs, window_s=win, hop_s=hop)
 
 if feats is None or feats.empty or ("t_start" not in feats.columns):
-    fs_int   = int(fs)
-    win_s    = int(win)
-    hop_s    = int(hop)
-    dur_s    = int(dur)
+    fs_int = int(fs)
+    win_s = int(win)
+    hop_s = int(hop)
+    dur_s = int(dur)
     warmup_s = int(warmup)
     st.error(
         "Not enough data to build feature windows.\n"
@@ -469,11 +568,12 @@ st.caption(f"Built {len(feats)} windows (window={win}s, hop={hop}s).")
 # Use only real, non-all-NaN feature columns with the expected prefixes
 _prefixes = ("cpu_", "gpu_", "fan_", "load_", "x_")
 feature_cols = [
-    c for c in feats.columns
-    if c.startswith(_prefixes) and feats[c].notna().any()
+    c for c in feats.columns if c.startswith(_prefixes) and feats[c].notna().any()
 ]
 if not feature_cols:
-    st.error("No usable feature columns found (all-NaN). Try Simulated mode or ensure CPU temp/load are available.")
+    st.error(
+        "No usable feature columns found (all-NaN). Try Simulated mode or ensure CPU temp/load are available."
+    )
     st.stop()
 
 model = None
@@ -526,7 +626,9 @@ feats["anom_score"] = scores
 # EWMA smoothing for stability
 feats["severity"] = pd.Series(severity).ewm(alpha=0.2).mean().values
 # Raw bands (hysteresis will consume this next)
-feats["status_raw"] = feats["severity"].apply(lambda s: band_status(s, green_hi, yellow_hi))
+feats["status_raw"] = feats["severity"].apply(
+    lambda s: band_status(s, green_hi, yellow_hi)
+)
 
 # Hysteresis processing
 status_hyst, events = apply_hysteresis(
@@ -544,15 +646,19 @@ status_hyst, events = apply_hysteresis(
 )
 feats["status"] = status_hyst
 
+
 # Normalize status for UI ("green/yellow/red") while keeping human label (e.g., "🟢 Healthy")
 def _status_simple(s: str) -> str:
-    if "Healthy" in s: return "green"
-    if "Warning" in s: return "yellow"
-    if "Faulty"  in s: return "red"
+    if "Healthy" in s:
+        return "green"
+    if "Warning" in s:
+        return "yellow"
+    if "Faulty" in s:
+        return "red"
     return "gray"
 
-feats["status_simple"] = feats["status"].map(_status_simple)
 
+feats["status_simple"] = feats["status"].map(_status_simple)
 
 # Save logs
 os.makedirs("logs", exist_ok=True)
@@ -565,8 +671,8 @@ st.markdown("---")
 st.markdown("## 🎯 Current System Status")
 
 last = feats.iloc[-1]
-current_status_label  = str(last["status"])          # e.g., "🟢 Healthy"
-current_status_simple = str(last["status_simple"])   # "green" | "yellow" | "red"
+current_status_label = str(last["status"])  # e.g., "🟢 Healthy"
+current_status_simple = str(last["status_simple"])  # "green" | "yellow" | "red"
 current_severity = int(last["severity"])
 
 status_emojis = {"green": "🟢", "yellow": "🟡", "red": "🔴"}
@@ -576,132 +682,208 @@ status_emoji = status_emojis.get(current_status_simple, "⚪")
 status_col1, status_col2, status_col3, status_col4 = st.columns(4)
 
 with status_col1:
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div class="status-card status-{current_status_simple}">
         <h2>{status_emoji} System Status: {current_status_label}</h2>
         <p>Severity Level: {current_severity}/100</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with status_col2:
     st.metric("🌡 Analysis Windows", f"{len(feats)}")
 
 with status_col3:
-    if 'cpu_temp' in df.columns and df['cpu_temp'].notna().any():
+    if "cpu_temp" in df.columns and df["cpu_temp"].notna().any():
         st.metric("🔥 Avg CPU Temp", f"{df['cpu_temp'].dropna().mean():.1f}°C")
     else:
         st.metric("🔥 Avg CPU Temp", "N/A")
 
 with status_col4:
-    if 'fan_rpm' in df.columns and df['fan_rpm'].notna().any():
+    if "fan_rpm" in df.columns and df["fan_rpm"].notna().any():
         st.metric("💨 Avg Fan Speed", f"{df['fan_rpm'].dropna().mean():.0f} RPM")
     else:
         st.metric("💨 Avg Fan Speed", "N/A")
 
-
 # Action Suggestions
 st.markdown("### 💡 Recommended Actions")
-suggestions = suggest_actions(last, feats, ambient=df["ambient"].iloc[-1] if "ambient" in df else 25.0)
+suggestions = suggest_actions(
+    last,
+    feats,
+    ambient=df["ambient"].iloc[-1] if "ambient" in df else 25.0,
+    green_hi=green_hi,
+    yellow_hi=yellow_hi,
+)
+
+
+def get_suggestion_style():
+    # Streamlit dark mode detection via st.get_option (works in Streamlit >=1.25)
+    theme = st.get_option("theme.base")
+    if theme == "dark":
+        return "background-color:#0b1220; color:#e5e7eb; border-left:4px solid #3b82f6; padding:0.75rem; border-radius:8px; margin:0.5rem 0;"
+    else:
+        return "background-color:#f1f5f9; color:#1e40af; border-left:4px solid #3b82f6; padding:0.75rem; border-radius:8px; margin:0.5rem 0;"
+
 
 if suggestions:
+    style = get_suggestion_style()
     for i, suggestion in enumerate(suggestions[:3]):
-        st.markdown(f"""
-        <div class="suggestion-item">
+        st.markdown(
+            f"""
+        <div style="{style}">
             <strong>{i+1}.</strong> {suggestion}
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 else:
     st.info("✅ System is operating normally. No immediate actions required.")
-
-# Fault Episodes
+# --- Episodes table (dark-mode friendly, column-guarded) ---
 if events:
     st.markdown("### 🚨 Detected Episodes")
     events_df = pd.DataFrame(events)
-    
-    # Color code the events
-    def color_status(status):
-        colors = {"red": "#fca5a5", "yellow": "#fde68a", "green": "#bbf7d0"}
-        return f"background-color: {colors.get(status, '#ffffff')}"
-    
-    st.dataframe(
-        events_df.style.applymap(color_status, subset=['status'] if 'status' in events_df.columns else []),
-        use_container_width=True
-    )
+
+    def _styler(df: pd.DataFrame):
+        # If no 'status' column present, skip coloring gracefully
+        if "status" not in df.columns:
+            return df.style
+
+        def _color(v):
+            m = str(v).lower()
+            if "red" in m:
+                return "background-color:#7f1d1d; color:#fde68a;"
+            if "yellow" in m:
+                return "background-color:#78350f; color:#fde68a;"
+            if "green" in m:
+                return "background-color:#064e3b; color:#e5e7eb;"
+            return ""
+
+        return df.style.applymap(_color, subset=["status"])
+
+    st.dataframe(_styler(events_df), use_container_width=True)
 
 # ------------------------- Visual Analytics Tabs -------------------------
 st.markdown("---")
 st.markdown("## 📊 System Analytics")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🌡 Temperature Trends", "📈 Performance Metrics", "⏰ Timeline Analysis", "📁 Export Data"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "🌡 Temperature Trends",
+        "📈 Performance Metrics",
+        "⏰ Timeline Analysis",
+        "📁 Export Data",
+    ]
+)
 
 with tab1:
     st.markdown("### Temperature and Fan Monitoring")
-    
+
     # Create subplots for temperature and fan data
     # Use 't' column if present; otherwise fallback to index
-x_axis = df["t"] if "t" in df.columns else df.index
+    x_axis = df["t"] if "t" in df.columns else df.index
 
-fig = make_subplots(
-    rows=2, cols=1,
-    subplot_titles=('Temperature Monitoring', 'Fan Performance'),
-    vertical_spacing=0.1,
-    shared_xaxes=True
-)
-
-# CPU temp
-if 'cpu_temp' in df.columns and df['cpu_temp'].notna().any():
-    fig.add_trace(
-        go_plotly.Scatter(x=x_axis, y=df['cpu_temp'].dropna(), name='CPU Temp',
-                          line=dict(color='#ef4444', width=2)),
-        row=1, col=1
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        subplot_titles=("Temperature Monitoring", "Fan Performance"),
+        vertical_spacing=0.1,
+        shared_xaxes=True,
     )
 
-# GPU temp (if available)
-if 'gpu_temp' in df.columns and df['gpu_temp'].notna().any():
-    fig.add_trace(
-        go_plotly.Scatter(x=x_axis, y=df['gpu_temp'].dropna(), name='GPU Temp',
-                          line=dict(color='#f59e0b', width=2)),
-        row=1, col=1
+    # CPU temp
+    if "cpu_temp" in df.columns and df["cpu_temp"].notna().any():
+        fig.add_trace(
+            go_plotly.Scatter(
+                x=x_axis,
+                y=df["cpu_temp"],
+                name="CPU Temp",
+                line=dict(color="#ef4444", width=2),
+            ),
+            row=1,
+            col=1,
+        )
+
+    # GPU temp (if available)
+    if "gpu_temp" in df.columns and df["gpu_temp"].notna().any():
+        fig.add_trace(
+            go_plotly.Scatter(
+                x=x_axis,
+                y=df["gpu_temp"],
+                name="GPU Temp",
+                line=dict(color="#f59e0b", width=2),
+            ),
+            row=1,
+            col=1,
+        )
+
+    # Fan RPM (if available)
+    if "fan_rpm" in df.columns and df["fan_rpm"].notna().any():
+        fig.add_trace(
+            go_plotly.Scatter(
+                x=x_axis,
+                y=df["fan_rpm"],
+                name="Fan RPM",
+                line=dict(color="#3b82f6", width=2),
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig.update_layout(
+        height=600, showlegend=True, title_text="System Thermal Performance"
     )
-
-# Fan RPM (if available)
-if 'fan_rpm' in df.columns and df['fan_rpm'].notna().any():
-    fig.add_trace(
-        go_plotly.Scatter(x=x_axis, y=df['fan_rpm'].dropna(), name='Fan RPM',
-                          line=dict(color='#3b82f6', width=2)),
-        row=2, col=1
+    fig.update_xaxes(
+        title_text="Time (s)" if "t" in df.columns else "Samples", row=2, col=1
     )
+    fig.update_yaxes(title_text="Temperature (°C)", row=1, col=1)
+    fig.update_yaxes(title_text="RPM", row=2, col=1)
 
-fig.update_layout(height=600, showlegend=True, title_text="System Thermal Performance")
-fig.update_xaxes(title_text="Time (s)" if "t" in df.columns else "Samples", row=2, col=1)
-fig.update_yaxes(title_text="Temperature (°C)", row=1, col=1)
-fig.update_yaxes(title_text="RPM", row=2, col=1)
-
-st.plotly_chart(fig, use_container_width=True)
-
+    st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
     st.markdown("### System Load and Performance")
-    
+
     # CPU Load chart
-    if 'cpu_load' in df.columns:
-        fig_load = px.area(df, y='cpu_load', title='CPU Load Over Time',
-                          color_discrete_sequence=['#8b5cf6'])
-        fig_load.update_layout(xaxis_title="Time", yaxis_title="CPU Load (%)")
+    if "cpu_load" in df.columns:
+        fig_load = px.area(
+            df,
+            x=x_axis,
+            y="cpu_load",
+            title="CPU Load Over Time",
+            color_discrete_sequence=["#8b5cf6"],
+        )
+        fig_load.update_layout(
+            xaxis_title="Time (s)" if "t" in df.columns else "Samples",
+            yaxis_title="CPU Load (%)",
+        )
         st.plotly_chart(fig_load, use_container_width=True)
-    
+
     # Severity over time
-    fig_severity = px.line(feats, x='t_start', y='severity', 
-                          title='Anomaly Severity Timeline',
-                          color_discrete_sequence=['#ec4899'])
-    
+    fig_severity = px.line(
+        feats,
+        x="t_start",
+        y="severity",
+        title="Anomaly Severity Timeline",
+        color_discrete_sequence=["#ec4899"],
+    )
+
     # Add threshold lines
-    fig_severity.add_hline(y=green_hi, line_dash="dash", line_color="green", 
-                          annotation_text="Normal Threshold")
-    fig_severity.add_hline(y=yellow_hi, line_dash="dash", line_color="orange",
-                          annotation_text="Warning Threshold")
-    
-    fig_severity.update_layout(xaxis_title="Time", yaxis_title="Severity Score")
+    fig_severity.add_hline(
+        y=green_hi,
+        line_dash="dash",
+        line_color="green",
+        annotation_text="Normal Threshold",
+    )
+    fig_severity.add_hline(
+        y=yellow_hi,
+        line_dash="dash",
+        line_color="orange",
+        annotation_text="Warning Threshold",
+    )
+
+    fig_severity.update_layout(xaxis_title="Time (s)", yaxis_title="Severity Score")
     st.plotly_chart(fig_severity, use_container_width=True)
 
 with tab3:
@@ -710,22 +892,24 @@ with tab3:
     # Build timeline table (include normalized status for styling)
     # assumes feats['status_simple'] was created earlier from feats['status']
     # (see earlier patch where we mapped "🟢 Healthy" -> "green", etc.)
-    timeline_df = feats[["t_start", "t_end", "status", "status_simple", "severity", "anom_score"]].copy()
+    timeline_df = feats[
+        ["t_start", "t_end", "status", "status_simple", "severity", "anom_score"]
+    ].copy()
     timeline_df = timeline_df.round(2)
 
     def highlight_status(row):
         s = row["status_simple"]
         if s == "red":
-            return ["background-color: #fee2e2"] * len(row)
+            return ["background-color:#7f1d1d; color:#fde68a;"] * len(row)
         elif s == "yellow":
-            return ["background-color: #fef3c7"] * len(row)
+            return ["background-color:#78350f; color:#fde68a;"] * len(row)
         else:
-            return ["background-color: #f0fdf4"] * len(row)
+            return ["background-color:#064e3b; color:#e5e7eb;"] * len(row)
 
     st.dataframe(
         timeline_df.style.apply(highlight_status, axis=1),
         use_container_width=True,
-        height=400
+        height=400,
     )
 
     # Summary statistics (use normalized labels)
@@ -750,10 +934,10 @@ with tab3:
 
 with tab4:
     st.markdown("### 📥 Export Analysis Results")
-    
+
     # Export section with better layout
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.markdown("#### 📊 Raw Data")
         st.download_button(
@@ -763,15 +947,15 @@ with tab4:
             mime="text/csv",
             use_container_width=True,
         )
-        
+
         st.download_button(
-            label="🔍 Download Analysis CSV", 
+            label="🔍 Download Analysis CSV",
             data=feats.to_csv(index=False).encode("utf-8"),
             file_name=f"pc_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
             use_container_width=True,
         )
-    
+
     with col2:
         st.markdown("#### 📋 Reports")
         try:
@@ -785,15 +969,17 @@ with tab4:
             )
         except Exception as e:
             st.warning(f"⚠ PDF report generation failed: {str(e)}")
-    
+
     # Export summary
-    st.info(f"""
+    st.info(
+        f"""
     📈 *Export Summary:*
     - Analysis Duration: {dur} seconds
     - Total Data Points: {len(df)} measurements  
     - Analysis Windows: {len(feats)} windows
     - Current Status: {current_status_label}
-    """)
+    """
+    )
 
 # ------------------------- Model Management -------------------------
 if save_btn:
@@ -806,9 +992,12 @@ if save_btn:
 
 # Footer
 st.markdown("---")
-st.markdown("""
+st.markdown(
+    """
 <div style='text-align: center; color: #64748b; padding: 1rem;'>
     🖥 <strong>PC Cooling Predictive Maintenance</strong> | 
     Keep your system cool and running optimally
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)

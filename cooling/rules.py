@@ -7,9 +7,18 @@ def _get(s: pd.Series, key: str, default=np.nan):
     except Exception:
         return default
 
-def suggest_actions(last_row: pd.Series, feats: pd.DataFrame, ambient: float):
+def suggest_actions(last_row: pd.Series, feats: pd.DataFrame, ambient: float, green_hi: float = 35, yellow_hi: float = 80):
     s = last_row
     out = []
+
+     # --- Add status/severity-based recommendations ---
+    status = s.get("status_simple", "")
+    severity = s.get("severity", 0)
+
+    if status == "red" or severity >= yellow_hi:
+        out.append("🔴 Critical: Immediate cooling intervention required. Check fans, thermal paste, and airflow.")
+    elif status == "yellow" or severity >= green_hi:
+        out.append("🟡 Warning: System temperature is elevated. Monitor closely and consider cleaning fans or improving airflow.")
 
     cpu_dT_amb = _get(s, "cpu_dT_amb")
     gpu_dT_amb = _get(s, "gpu_dT_amb")
