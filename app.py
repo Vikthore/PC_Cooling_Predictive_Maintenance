@@ -218,7 +218,8 @@ st.markdown(
 
 # ------------------------- Header Section -------------------------
 st.markdown(
-    '<h1 class="main-header">🖥 PC Cooling Predictive Maintenance</h1>',
+    '<h1 class="main-header">🖥 PC Cooling Predictive Maintenance</h1>'
+    '<h2 class="subtitle"><i> Developed by: Okeke Donald Chisom<br>Registration Number: 20201208763</i></h2> ',
     unsafe_allow_html=True,
 )
 st.markdown(
