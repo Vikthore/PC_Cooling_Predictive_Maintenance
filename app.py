@@ -219,9 +219,28 @@ st.markdown(
 # ------------------------- Header Section -------------------------
 st.markdown(
     '<h1 class="main-header">🖥 PC Cooling Predictive Maintenance</h1>'
-    '<h2 class="subtitle"><i> Developed by: Okeke Donald Chisom<br>Registration Number: 20201208763</i></h2> ',
+    '<h2 class="subtitle"><i>Developed by</i></h2>',
     unsafe_allow_html=True,
 )
+
+# Team members section
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown(
+        '<p style="text-align: center; font-size: 0.95rem; color: #666;">Okeke Donald Chisom<br><span style="font-size: 0.85rem; color: #999;">20201208763</span></p>',
+        unsafe_allow_html=True,
+    )
+with col2:
+    st.markdown(
+        '<p style="text-align: center; font-size: 0.95rem; color: #666;">Iwuchukwu Miracle Chima<br><span style="font-size: 0.85rem; color: #999;">20201233393</span></p>',
+        unsafe_allow_html=True,
+    )
+with col3:
+    st.markdown(
+        '<p style="text-align: center; font-size: 0.95rem; color: #666;">Nwanne-Udeh Bruno Chinaza<br><span style="font-size: 0.85rem; color: #999;">20201203523</span></p>',
+        unsafe_allow_html=True,
+    )
+
 st.markdown(
     '<p class="subtitle">Monitor your system health and prevent overheating issues before they occur</p>',
     unsafe_allow_html=True,
